@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, { FadeOut } from 'react-native-reanimated';
 
-import { useTheme } from '@/hooks/use-theme';
+const LOADING_ANIMATION = require('@/assets/Animation/bible-connection.json');
 
-const LOADING_ANIMATION = require('@/assets/animation/bible-connection.json');
+/** Must match the native splash `backgroundColor` in app.json. */
+const LOADING_BACKGROUND = '#040A1F';
 
 const FADE_OUT_MS = 400;
 /** Safety net: never trap the user behind the loading screen. */
-const MAX_WAIT_MS = 8000;
+const MAX_WAIT_MS = 12000;
 
 type LoadingScreenProps = {
   /**
@@ -21,7 +22,6 @@ type LoadingScreenProps = {
 };
 
 export function LoadingScreen({ ready = true }: LoadingScreenProps) {
-  const theme = useTheme();
   const [animationDone, setAnimationDone] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const splashHidden = useRef(false);
@@ -49,7 +49,7 @@ export function LoadingScreen({ ready = true }: LoadingScreenProps) {
       exiting={FadeOut.duration(FADE_OUT_MS)}
       accessibilityRole="progressbar"
       accessibilityLabel="Loading"
-      style={[styles.overlay, { backgroundColor: theme.background }]}>
+      style={[styles.overlay, { backgroundColor: LOADING_BACKGROUND }]}>
       <LottieView
         source={LOADING_ANIMATION}
         autoPlay
@@ -77,8 +77,8 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   animation: {
-    width: '80%',
-    maxWidth: 420,
-    aspectRatio: 1,
+    width: '90%',
+    maxWidth: 600,
+    aspectRatio: 1536 / 1024, // the animation's 1536x1024 canvas
   },
 });
