@@ -1,3 +1,4 @@
+import { friendlyAuthError } from '@/lib/auth-errors';
 import { supabase } from '@/lib/supabase';
 
 export type TotpEnrollment = {
@@ -15,14 +16,13 @@ export type VerifiedFactor = {
 
 const FACTOR_NAME = 'Authenticator app';
 
-function friendlyError(message: string): string {
-  if (/invalid|expired|incorrect/i.test(message)) {
-    return 'That code was not accepted. Check the app and try the newest code.';
-  }
-  if (/rate|too many|limit/i.test(message)) {
-    return 'Too many attempts. Wait a minute and try again.';
-  }
-  return message;
+/** A code that fails to verify is almost always a typo or an old code. */
+const CODE_REJECTED = 'That code was not accepted. Check the app and try the newest code.';
+
+function codeError(error: Parameters<typeof friendlyAuthError>[0]): string {
+  const friendly = friendlyAuthError(error);
+  // The generic fallback is unhelpful here, where a wrong code is the likely cause.
+  return friendly === 'Something went wrong. Please try again.' ? CODE_REJECTED : friendly;
 }
 
 /** The authenticator apps that are set up and confirmed for the signed-in account. */
@@ -31,7 +31,9 @@ export async function listVerifiedFactors(): Promise<{
   error: string | null;
 }> {
   const { data, error } = await supabase.auth.mfa.listFactors();
-  if (error || !data) return { factors: [], error: error?.message ?? 'Could not load factors.' };
+  if (error || !data) {
+    return { factors: [], error: error ? friendlyAuthError(error) : 'Could not load your devices.' };
+  }
   return {
     factors: data.totp.map((factor) => ({
       id: factor.id,
@@ -64,7 +66,10 @@ export async function startTotpEnrollment(): Promise<{
     issuer: 'Bible Connection',
   });
   if (error || !data) {
-    return { enrollment: null, error: error?.message ?? 'Could not start setup.' };
+    return {
+      enrollment: null,
+      error: error ? friendlyAuthError(error) : 'We could not start the setup. Please try again.',
+    };
   }
 
   return {
@@ -83,7 +88,7 @@ export async function confirmTotpEnrollment(
   code: string,
 ): Promise<{ error: string | null }> {
   const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
-  return { error: error ? friendlyError(error.message) : null };
+  return { error: error ? codeError(error) : null };
 }
 
 /** Checks the code from the person's authenticator after the password step. */
@@ -94,11 +99,11 @@ export async function verifyTotpCode(code: string): Promise<{ error: string | nu
   if (!factor) return { error: 'No authenticator app is set up for this account.' };
 
   const result = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
-  return { error: result.error ? friendlyError(result.error.message) : null };
+  return { error: result.error ? codeError(result.error) : null };
 }
 
 /** Removes an authenticator app. Needs a session that has already passed the code step. */
 export async function removeFactor(factorId: string): Promise<{ error: string | null }> {
   const { error } = await supabase.auth.mfa.unenroll({ factorId });
-  return { error: error?.message ?? null };
+  return { error: error ? friendlyAuthError(error) : null };
 }

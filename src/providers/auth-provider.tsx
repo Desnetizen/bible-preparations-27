@@ -11,6 +11,7 @@ import {
 
 import { REQUIRE_MFA } from '@/constants/security';
 import { AuthContext, type AccessState, type AuthData } from '@/hooks/use-auth';
+import { friendlyAuthError } from '@/lib/auth-errors';
 import { supabase } from '@/lib/supabase';
 
 type Assurance = {
@@ -105,9 +106,10 @@ export default function AuthProvider({ children }: PropsWithChildren) {
       const params = parsed.queryParams ?? {};
       const code = typeof params.code === 'string' ? params.code : null;
       if (!code) {
-        const description =
-          typeof params.error_description === 'string' ? params.error_description : null;
-        if (description) setLinkError(description);
+        // The link itself reported a problem, usually that it has expired.
+        if (typeof params.error_description === 'string' || typeof params.error === 'string') {
+          setLinkError('This reset link has expired or was already used. Please request a new one.');
+        }
         return;
       }
       if (handledCode.current === code) return;
@@ -126,7 +128,7 @@ export default function AuthProvider({ children }: PropsWithChildren) {
 
   const signIn = useCallback<AuthData['signIn']>(async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    return { error: error ? friendlyAuthError(error) : null };
   }, []);
 
   const signUp = useCallback<AuthData['signUp']>(async (email, password, fullName) => {
@@ -136,7 +138,7 @@ export default function AuthProvider({ children }: PropsWithChildren) {
       options: fullName ? { data: { full_name: fullName } } : undefined,
     });
 
-    if (error) return { error: error.message, needsEmailConfirmation: false };
+    if (error) return { error: friendlyAuthError(error), needsEmailConfirmation: false };
 
     // With email confirmation on, Supabase answers an already-registered address
     // with a user that has no identities instead of an error.
@@ -152,14 +154,14 @@ export default function AuthProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback<AuthData['signOut']>(async () => {
     const { error } = await supabase.auth.signOut();
-    return { error: error?.message ?? null };
+    return { error: error ? friendlyAuthError(error) : null };
   }, []);
 
   const requestPasswordReset = useCallback<AuthData['requestPasswordReset']>(async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: Linking.createURL('reset-password'),
     });
-    return { error: error?.message ?? null };
+    return { error: error ? friendlyAuthError(error) : null };
   }, []);
 
   const updatePassword = useCallback<AuthData['updatePassword']>(
@@ -169,7 +171,7 @@ export default function AuthProvider({ children }: PropsWithChildren) {
           ? { password: newPassword, current_password: currentPassword }
           : { password: newPassword },
       );
-      if (error) return { error: error.message };
+      if (error) return { error: friendlyAuthError(error) };
 
       // A changed password should end every other login, in case the old one leaked.
       // This session stays signed in. Failure here must not undo the change.

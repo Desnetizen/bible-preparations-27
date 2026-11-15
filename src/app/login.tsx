@@ -70,7 +70,7 @@ export default function LoginScreen() {
     const trimmedEmail = email.trim();
 
     if (!isSupabaseConfigured) {
-      setError('Supabase is not connected yet. See the note above, then restart the dev server.');
+      setError('This app is not connected to its server yet. Please try again later.');
       return;
     }
     if (!EMAIL_PATTERN.test(trimmedEmail)) {
@@ -136,8 +136,9 @@ export default function LoginScreen() {
               <View style={styles.banner} accessibilityRole="alert">
                 <Text style={styles.bannerTitle}>Supabase is not connected</Text>
                 <Text style={styles.bannerBody}>
-                  Copy .env.example to .env.local, add your project URL and publishable key, then
-                  restart with npx expo start --clear.
+                  Developer note: .env.local is missing or still holds the sample values from
+                  .env.example. Put your real project URL and publishable key in it, then restart
+                  with npx expo start --clear.
                 </Text>
               </View>
             )}
