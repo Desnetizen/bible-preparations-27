@@ -95,20 +95,27 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     };
   }, [userId, accessToken]);
 
-  // Password reset emails link back into the app. The link carries a one-time code
-  // that is exchanged for a session; the auth client then reports a recovery event.
+  // Emails (password reset and email confirmation) link back into the app. The link
+  // carries a one-time code that is exchanged for a session. For a reset the auth
+  // client then reports a recovery event; for a confirmation the person is signed in.
   useEffect(() => {
     async function handleUrl(url: string | null) {
       if (!url) return;
       const parsed = Linking.parse(url);
-      if (parsed.path !== 'reset-password') return;
+      const isReset = parsed.path === 'reset-password';
+      const isConfirmation = parsed.path === 'email-confirmed';
+      if (!isReset && !isConfirmation) return;
+
+      const failure = isReset
+        ? 'This reset link has expired or was already used. Please request a new one.'
+        : 'We could not finish signing you in from that link. If you already confirmed your email, just log in.';
 
       const params = parsed.queryParams ?? {};
       const code = typeof params.code === 'string' ? params.code : null;
       if (!code) {
         // The link itself reported a problem, usually that it has expired.
         if (typeof params.error_description === 'string' || typeof params.error === 'string') {
-          setLinkError('This reset link has expired or was already used. Please request a new one.');
+          setLinkError(failure);
         }
         return;
       }
@@ -116,9 +123,7 @@ export default function AuthProvider({ children }: PropsWithChildren) {
       handledCode.current = code;
 
       const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error) {
-        setLinkError('This reset link has expired or was already used. Please request a new one.');
-      }
+      if (error) setLinkError(failure);
     }
 
     void Linking.getInitialURL().then(handleUrl);
@@ -135,7 +140,12 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: fullName ? { data: { full_name: fullName } } : undefined,
+      options: {
+        ...(fullName ? { data: { full_name: fullName } } : {}),
+        // The confirmation link opens this app instead of the project's Site URL,
+        // which is http://localhost:3000 until it is changed in the dashboard.
+        emailRedirectTo: Linking.createURL('email-confirmed'),
+      },
     });
 
     if (error) return { error: friendlyAuthError(error), needsEmailConfirmation: false };
