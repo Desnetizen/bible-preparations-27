@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -35,14 +36,23 @@ export function AccountCard() {
           </ThemedText>
         ) : null}
       </View>
-      <Pressable
-        onPress={onLogOut}
-        disabled={busy}
-        hitSlop={8}
-        accessibilityRole="button"
-        style={({ pressed }) => (pressed || busy) && styles.pressed}>
-        <ThemedText type="linkPrimary">Log out</ThemedText>
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          onPress={() => router.push('/security')}
+          hitSlop={8}
+          accessibilityRole="button"
+          style={({ pressed }) => pressed && styles.pressed}>
+          <ThemedText type="linkPrimary">Security</ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={onLogOut}
+          disabled={busy}
+          hitSlop={8}
+          accessibilityRole="button"
+          style={({ pressed }) => (pressed || busy) && styles.pressed}>
+          <ThemedText type="linkPrimary">Log out</ThemedText>
+        </Pressable>
+      </View>
     </ThemedView>
   );
 }
@@ -59,6 +69,10 @@ const styles = StyleSheet.create({
   },
   identity: {
     flex: 1,
+  },
+  actions: {
+    alignItems: 'flex-end',
+    gap: Spacing.two,
   },
   pressed: {
     opacity: 0.6,

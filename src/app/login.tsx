@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useRef, useState } from 'react';
 import {
@@ -15,18 +16,23 @@ import {
 
 import { BrandHero, bootIntro } from '@/components/brand-hero';
 import { Brand } from '@/constants/brand';
+import { PasswordStrength } from '@/components/password-strength';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import {
+  MIN_PASSWORD_LENGTH,
+  checkPasswordBreached,
+  evaluatePassword,
+} from '@/lib/password-policy';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
 type Mode = 'login' | 'signup';
 type Field = 'name' | 'email' | 'password';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD_LENGTH = 6;
 
 export default function LoginScreen() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, linkError, clearLinkError } = useAuth();
 
   // While the boot loading screen is still covering this screen, show the
   // finished logo. Later visits (after logging out) play the animation.
@@ -46,6 +52,7 @@ export default function LoginScreen() {
   const passwordRef = useRef<TextInputInstance>(null);
 
   const isSignUp = mode === 'signup';
+  const passwordReport = evaluatePassword(password, { email, name });
 
   function switchMode(next: Mode) {
     if (next === mode || submitting) return;
@@ -70,14 +77,28 @@ export default function LoginScreen() {
       setError('Enter a valid email address.');
       return;
     }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Your password needs at least ${MIN_PASSWORD_LENGTH} characters.`);
+    if (password.length === 0) {
+      setError('Enter your password.');
+      return;
+    }
+    // Sign-in accepts any existing password so older accounts are not locked out.
+    // The strict rules apply only when a new password is chosen.
+    if (isSignUp && !passwordReport.meetsPolicy) {
+      setError(passwordReport.issues[0] ?? 'Choose a stronger password.');
       return;
     }
 
     setSubmitting(true);
     try {
       if (isSignUp) {
+        const breach = await checkPasswordBreached(password);
+        if (breach.status === 'breached') {
+          setError(
+            'This password has appeared in known data breaches. Please choose a different one.',
+          );
+          return;
+        }
+
         const result = await signUp(trimmedEmail, password, name.trim());
         if (result.error) {
           setError(result.error);
@@ -219,6 +240,8 @@ export default function LoginScreen() {
               </View>
             </LabeledInput>
 
+            {isSignUp && password.length > 0 && <PasswordStrength report={passwordReport} />}
+
             {error && (
               <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
                 {error}
@@ -228,6 +251,25 @@ export default function LoginScreen() {
               <Text style={styles.notice} accessibilityLiveRegion="polite">
                 {notice}
               </Text>
+            )}
+
+            {linkError && (
+              <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
+                {linkError}
+              </Text>
+            )}
+
+            {!isSignUp && (
+              <Pressable
+                onPress={() => {
+                  clearLinkError();
+                  router.push('/forgot-password');
+                }}
+                style={styles.forgotLink}
+                hitSlop={8}
+                accessibilityRole="button">
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
             )}
 
             <Pressable
@@ -426,6 +468,15 @@ const styles = StyleSheet.create({
   switchTextStrong: {
     color: Brand.text,
     fontWeight: '700',
+  },
+  forgotLink: {
+    alignSelf: 'flex-end',
+    paddingVertical: Spacing.one,
+  },
+  forgotText: {
+    color: Brand.info,
+    fontSize: 14,
+    fontWeight: '600',
   },
   banner: {
     backgroundColor: Brand.surface,
