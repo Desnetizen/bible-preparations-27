@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AccountCard } from '@/components/account-card';
 import { HintRow } from '@/components/hint-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -32,9 +33,11 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
+        <AccountCard />
+
         <ThemedView style={styles.heroSection}>
           <Image
-            source={require('../../assets/images/app-logo.png')}
+            source={require('@/assets/images/app-logo.png')}
             style={styles.logo}
             contentFit="contain"
           />
